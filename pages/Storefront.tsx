@@ -14,9 +14,33 @@ const Storefront: React.FC = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [activeView, setActiveView] = useState<'home' | 'category' | 'best-sellers'>('home');
+  const [activeView, setActiveView] = useState<'home' | 'category' | 'best-sellers' | 'checkout' | 'success'>('home');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // Banner Carousel State
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const bannerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-slide effect
+  useEffect(() => {
+    if (banners.length <= 1) return;
+
+    const interval = setInterval(() => {
+      if (!bannerRef.current) return;
+
+      const nextIndex = (currentBannerIndex + 1) % banners.length;
+      setCurrentBannerIndex(nextIndex);
+
+      const width = bannerRef.current.offsetWidth;
+      bannerRef.current.scrollTo({
+        left: width * nextIndex,
+        behavior: 'smooth'
+      });
+    }, 5000); // 5 seconds
+
+    return () => clearInterval(interval);
+  }, [banners.length, currentBannerIndex]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -51,7 +75,7 @@ const Storefront: React.FC = () => {
     localStorage.setItem('luxe_cart', JSON.stringify(cart));
   }, [cart]);
 
-  const changeView = (view: 'home' | 'category' | 'best-sellers', categoryId: string | null = null) => {
+  const changeView = (view: 'home' | 'category' | 'best-sellers' | 'checkout' | 'success', categoryId: string | null = null) => {
     setIsTransitioning(true);
     setTimeout(() => {
       setActiveView(view);
@@ -122,6 +146,29 @@ const Storefront: React.FC = () => {
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotal = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
 
+  const handleCheckout = () => {
+    setIsCartOpen(false);
+    changeView('checkout');
+  };
+
+  const handlePlaceOrder = async (details: { name: string; email: string; phone: string; address: string; city: string }) => {
+    try {
+      await dbService.createOrder({
+        customer_name: details.name,
+        phone_number: details.phone,
+        address: details.address,
+        city: details.city,
+        total_price: cartTotal,
+        status: 'pending',
+        items: cart
+      });
+      setCart([]);
+      changeView('success');
+    } catch (err) {
+      alert("Failed to place order. Please try again.");
+    }
+  };
+
   // Determine what products to display in non-home views
   let filteredProducts = products;
   let viewTitle = "";
@@ -131,6 +178,10 @@ const Storefront: React.FC = () => {
   } else if (activeView === 'category' && activeCategoryId) {
     filteredProducts = products.filter(p => p.category_id === activeCategoryId);
     viewTitle = categories.find(c => c.id === activeCategoryId)?.name || "Collection";
+  } else if (activeView === 'checkout') {
+    viewTitle = "Checkout";
+  } else if (activeView === 'success') {
+    viewTitle = "Order Confirmed";
   }
 
   return (
@@ -144,6 +195,7 @@ const Storefront: React.FC = () => {
         onRemove={removeFromCart}
         onUpdate={updateQuantity}
         total={cartTotal}
+        onCheckout={handleCheckout}
       />
 
       <MenuDrawer
@@ -190,8 +242,25 @@ const Storefront: React.FC = () => {
             {/* Hero Slider */}
             <section className="px-4 py-4 md:px-8 max-w-[1400px] mx-auto">
               <div className="relative w-full overflow-hidden rounded-2xl md:rounded-3xl h-[50vh] min-h-[300px] group shadow-sm">
-                <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar w-full h-full">
-                  {banners.length > 0 ? banners.map(banner => (
+                <div
+                  ref={bannerRef}
+                  className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar w-full h-full scroll-smooth"
+                  onScroll={(e) => {
+                    // Optional: update index on manual scroll if needed, 
+                    // but for simple auto-slide we can let the timer drive or just update state 
+                    // if we want perfect sync. For now, we trust the timer or dots.
+                    // A simple debounce calc could allow manual swipe sync.
+                    const scrollLeft = e.currentTarget.scrollLeft;
+                    const width = e.currentTarget.offsetWidth;
+                    const index = Math.round(scrollLeft / width);
+                    if (index !== currentBannerIndex) {
+                      // Only update if we are not currently animating from the timer to avoid loops?
+                      // Actually, updating state is fine, it will just reset the timer if we include it in deps.
+                      // To avoid jitter, we might skip this for now or do it carefully.
+                    }
+                  }}
+                >
+                  {banners.length > 0 ? banners.map((banner, idx) => (
                     <div key={banner.id} className="snap-center shrink-0 w-full h-full relative">
                       <img src={banner.image_url} className="absolute inset-0 w-full h-full object-cover" alt={banner.title} />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
@@ -215,6 +284,30 @@ const Storefront: React.FC = () => {
                     </div>
                   )}
                 </div>
+                {/* Carousel Indicators */}
+                {banners.length > 1 && (
+                  <div className="absolute bottom-6 right-6 flex gap-2 z-10">
+                    {banners.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setCurrentBannerIndex(idx);
+                          if (bannerRef.current) {
+                            bannerRef.current.scrollTo({
+                              left: bannerRef.current.offsetWidth * idx,
+                              behavior: 'smooth'
+                            });
+                          }
+                        }}
+                        className={`h-1.5 rounded-full transition-all ${idx === currentBannerIndex
+                          ? 'w-8 bg-white'
+                          : 'w-2 bg-white/40 hover:bg-white/60'
+                          }`}
+                        aria-label={`Go to slide ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             </section>
 
@@ -283,6 +376,66 @@ const Storefront: React.FC = () => {
                 </section>
               );
             })}
+          </div>
+        ) : activeView === 'checkout' ? (
+          /* Checkout View */
+          <div className="w-full max-w-4xl px-4 md:px-8 py-12 animate-fade-in">
+            <div className="flex items-center gap-3 mb-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">
+              <button onClick={() => changeView('home')} className="hover:text-primary transition-colors">Home</button>
+              <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+              <span className="text-slate-900">Checkout</span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+              <div className="flex flex-col gap-8">
+                <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter uppercase">Secure Checkout</h2>
+                <CheckoutForm onSubmit={handlePlaceOrder} total={cartTotal} />
+              </div>
+
+              <div className="bg-slate-50 p-8 rounded-3xl border border-slate-100 flex flex-col gap-6 sticky top-24">
+                <h3 className="text-xl font-black uppercase tracking-tight">Order Summary</h3>
+                <div className="flex flex-col gap-4 max-h-[400px] overflow-y-auto no-scrollbar">
+                  {cart.map(item => (
+                    <div key={item.product.id} className="flex gap-4">
+                      <div className="h-16 w-16 bg-white rounded-xl overflow-hidden flex-shrink-0">
+                        <img src={item.product.image_url} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-bold text-sm text-slate-900">{item.product.name}</p>
+                        <p className="text-xs text-slate-500">Qty: {item.quantity}</p>
+                      </div>
+                      <p className="font-bold text-sm text-slate-900">${(item.product.price * item.quantity).toFixed(2)}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="border-t border-slate-200 pt-4 flex flex-col gap-2">
+                  <div className="flex justify-between text-sm font-bold text-slate-500">
+                    <span>Subtotal</span>
+                    <span>${cartTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold text-slate-500">
+                    <span>Shipping</span>
+                    <span className="text-emerald-600">Free</span>
+                  </div>
+                  <div className="flex justify-between text-xl font-black text-slate-900 mt-2 pt-2 border-t border-slate-200">
+                    <span>Total</span>
+                    <span>${cartTotal.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : activeView === 'success' ? (
+          /* Success View */
+          <div className="w-full h-[60vh] flex flex-col items-center justify-center px-4 animate-fade-in text-center">
+            <div className="h-24 w-24 bg-emerald-50 rounded-full flex items-center justify-center mb-6 text-emerald-500">
+              <span className="material-symbols-outlined text-5xl">check_circle</span>
+            </div>
+            <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter uppercase mb-2">Order Confirmed!</h2>
+            <p className="text-slate-500 font-medium mb-8 max-w-md">Thank you for your purchase. We've received your order and will begin processing it right away.</p>
+            <button onClick={() => changeView('home')} className="px-8 py-3 bg-slate-900 text-white font-black uppercase tracking-widest rounded-xl hover:bg-primary transition-colors">
+              Continue Shopping
+            </button>
           </div>
         ) : (
           /* Filtered Category / Best Sellers View */
@@ -439,8 +592,71 @@ const ProductCard: React.FC<{ product: Product; onAdd: () => void }> = ({ produc
   </div>
 );
 
+const CheckoutForm: React.FC<{ onSubmit: (data: any) => void; total: number }> = ({ onSubmit, total }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    city: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    // Simulate delay
+    await new Promise(r => setTimeout(r, 1000));
+    onSubmit(formData);
+    setLoading(false);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-6 w-full">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-black uppercase tracking-widest text-slate-400">Full Name</label>
+          <input required className="px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-primary focus:bg-white rounded-xl font-bold text-slate-900 transition-all outline-none"
+            value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="John Doe" />
+        </div>
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-black uppercase tracking-widest text-slate-400">Email Address</label>
+          <input required type="email" className="px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-primary focus:bg-white rounded-xl font-bold text-slate-900 transition-all outline-none"
+            value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="john@example.com" />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-xs font-black uppercase tracking-widest text-slate-400">Phone Number</label>
+        <input required type="tel" className="px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-primary focus:bg-white rounded-xl font-bold text-slate-900 transition-all outline-none"
+          value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="+964 770 000 0000" />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-xs font-black uppercase tracking-widest text-slate-400">Address</label>
+        <input required className="px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-primary focus:bg-white rounded-xl font-bold text-slate-900 transition-all outline-none"
+          value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Street Address, Area" />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-xs font-black uppercase tracking-widest text-slate-400">City / Governorate</label>
+        <input required className="px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-primary focus:bg-white rounded-xl font-bold text-slate-900 transition-all outline-none"
+          value={formData.city} onChange={e => setFormData({ ...formData, city: e.target.value })} placeholder="Baghdad" />
+      </div>
+
+      <button disabled={loading} type="submit" className="mt-4 w-full py-4 bg-primary text-white font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
+        {loading ? 'Processing...' : `Pay $${total.toFixed(2)} & Place Order`}
+        {!loading && <span className="material-symbols-outlined text-sm">lock</span>}
+      </button>
+      <p className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest flex items-center justify-center gap-1">
+        <span className="material-symbols-outlined text-[14px]">verified_user</span> Secure SSL Key Encryption
+      </p>
+    </form>
+  );
+};
+
 /* Internal Component: CartDrawer */
-const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void; cart: CartItem[]; onRemove: (id: string) => void; onUpdate: (id: string, d: number) => void; total: number }> = ({ isOpen, onClose, cart, onRemove, onUpdate, total }) => (
+const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void; cart: CartItem[]; onRemove: (id: string) => void; onUpdate: (id: string, d: number) => void; total: number; onCheckout: () => void }> = ({ isOpen, onClose, cart, onRemove, onUpdate, total, onCheckout }) => (
   <div className={`fixed inset-0 z-[100] transition-all duration-500 ${isOpen ? 'visible' : 'invisible'}`}>
     <div className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-500 ${isOpen ? 'opacity-100' : 'opacity-0'}`} onClick={onClose}></div>
     <div className={`absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl flex flex-col transition-transform duration-500 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
@@ -488,7 +704,7 @@ const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void; cart: CartIte
             <span className="text-xl font-black text-slate-900">${total.toFixed(2)}</span>
           </div>
           <p className="text-[10px] text-slate-400 font-medium">Taxes and shipping calculated at checkout. Enjoy free global shipping on all orders this month.</p>
-          <button className="w-full py-4 bg-primary text-white font-black rounded-2xl shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all active:scale-[0.98]">Checkout Now</button>
+          <button onClick={onCheckout} className="w-full py-4 bg-primary text-white font-black rounded-2xl shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all active:scale-[0.98]">Checkout Now</button>
         </div>
       )}
     </div>

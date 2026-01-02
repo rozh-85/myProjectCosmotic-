@@ -6,26 +6,62 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminProducts from './pages/AdminProducts';
 import AdminCategories from './pages/AdminCategories';
 import AdminBanners from './pages/AdminBanners';
+import AdminOrders from './pages/AdminOrders';
 import Storefront from './pages/Storefront';
+import { AuthProvider } from './context/AuthContext';
+import { RequireAuth } from './components/RequireAuth';
+import Login from './pages/Login';
+import AdminSettings from './pages/AdminSettings';
 import { ToastProvider } from './context/ToastContext';
+import { SettingsProvider } from './context/SettingsContext';
 
 const App: React.FC = () => {
   return (
-    <ToastProvider>
-      <Router>
-        <Routes>
-          {/* Storefront Routes */}
-          <Route path="/" element={<Storefront />} />
+    <AuthProvider>
+      <SettingsProvider>
+        <ToastProvider>
+          <Router>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<Storefront />} />
+              <Route path="/login" element={<Login />} />
 
-          {/* Admin Routes */}
-          <Route path="/admin" element={<AdminLayout><AdminDashboard /></AdminLayout>} />
-          <Route path="/admin/products" element={<AdminLayout><AdminProducts /></AdminLayout>} />
-          <Route path="/admin/categories" element={<AdminLayout><AdminCategories /></AdminLayout>} />
-          <Route path="/admin/banners" element={<AdminLayout><AdminBanners /></AdminLayout>} />
-          <Route path="/admin/settings" element={<AdminLayout><div className="p-10">Admin Settings (TBD)</div></AdminLayout>} />
-        </Routes>
-      </Router>
-    </ToastProvider>
+              {/* Admin Routes (Protected) */}
+              <Route path="/admin" element={
+                <RequireAuth>
+                  <AdminLayout><AdminDashboard /></AdminLayout>
+                </RequireAuth>
+              } />
+              <Route path="/admin/products" element={
+                <RequireAuth>
+                  <AdminLayout><AdminProducts /></AdminLayout>
+                </RequireAuth>
+              } />
+              <Route path="/admin/categories" element={
+                <RequireAuth>
+                  <AdminLayout><AdminCategories /></AdminLayout>
+                </RequireAuth>
+              } />
+              <Route path="/admin/banners" element={
+                <RequireAuth>
+                  <AdminLayout><AdminBanners /></AdminLayout>
+                </RequireAuth>
+              } />
+              <Route path="/admin/orders" element={
+                <RequireAuth>
+                  <AdminLayout><AdminOrders /></AdminLayout>
+                </RequireAuth>
+              } />
+              <Route path="/admin/settings" element={
+                <RequireAuth>
+                  <AdminLayout><AdminSettings /></AdminLayout>
+                </RequireAuth>
+              } />
+            </Routes>
+          </Router>
+        </ToastProvider>
+      </SettingsProvider>
+    </AuthProvider>
   );
 };
 

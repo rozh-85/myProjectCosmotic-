@@ -16,13 +16,13 @@ export const dbService = {
         .from('categories')
         .select('*, products(count)')
         .order('name');
-      
+
       if (error) {
         if (error.code === '42P01') return [];
         console.error("Error fetching categories:", formatError(error));
         throw new Error(formatError(error));
       }
-      
+
       return (data || []).map(cat => {
         let pCount = 0;
         const productsField = cat.products;
@@ -33,7 +33,7 @@ export const dbService = {
             pCount = (productsField as any).count ?? 0;
           }
         }
-        
+
         return {
           id: String(cat.id ?? ''),
           name: String(cat.name ?? ''),
@@ -55,7 +55,7 @@ export const dbService = {
       .insert([category])
       .select()
       .single();
-    
+
     if (error) {
       const msg = formatError(error);
       console.error("Error adding category:", msg);
@@ -95,13 +95,13 @@ export const dbService = {
         .from('products')
         .select('*, categories(name)')
         .order('created_at', { ascending: false });
-      
+
       if (error) {
         if (error.code === '42P01') return [];
         console.error("Error fetching products:", formatError(error));
         throw new Error(formatError(error));
       }
-      
+
       return (data || []).map(prod => {
         let catName = '';
         const categoryField = prod.categories;
@@ -137,7 +137,7 @@ export const dbService = {
       .insert([product])
       .select()
       .single();
-    
+
     if (error) {
       const msg = formatError(error);
       console.error("Error adding product:", msg);
@@ -193,6 +193,16 @@ export const dbService = {
     return data || [];
   },
 
+  async updateOrderStatus(id: string, status: 'pending' | 'completed' | 'cancelled'): Promise<void> {
+    const { error } = await supabase
+      .from('orders')
+      .update({ status })
+      .eq('id', id);
+    if (error) {
+      throw new Error(formatError(error));
+    }
+  },
+
   // Banners
   async getBanners(): Promise<Banner[]> {
     try {
@@ -200,13 +210,13 @@ export const dbService = {
         .from('banners')
         .select('*')
         .order('created_at', { ascending: false });
-      
+
       if (error) {
         if (error.code === '42P01') return [];
         console.error("Error fetching banners:", formatError(error));
         throw new Error(formatError(error));
       }
-      
+
       return (data || []).map(b => ({
         id: String(b.id),
         title: String(b.title || ''),
@@ -227,7 +237,7 @@ export const dbService = {
       .insert([banner])
       .select()
       .single();
-    
+
     if (error) {
       const msg = formatError(error);
       console.error("Error adding banner:", msg);
@@ -258,5 +268,32 @@ export const dbService = {
       console.error("Error deleting banner:", msg);
       throw new Error(msg);
     }
+  },
+
+  // Settings
+  async getSetting(key: string): Promise<string> {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', key)
+        .single();
+
+      if (error) {
+        if (error.code === '42P01') return ''; // table doesn't exist yet
+        if (error.code === 'PGRST116') return ''; // row not found
+        return '';
+      }
+      return data?.value || '';
+    } catch {
+      return '';
+    }
+  },
+
+  async updateSetting(key: string, value: string): Promise<void> {
+    const { error } = await supabase
+      .from('settings')
+      .upsert({ key, value });
+    if (error) throw new Error(formatError(error));
   }
 };

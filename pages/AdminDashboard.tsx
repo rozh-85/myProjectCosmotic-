@@ -4,17 +4,25 @@ import { dbService } from '../services/dbService';
 import { Link } from 'react-router-dom';
 
 const AdminDashboard: React.FC = () => {
-  const [stats, setStats] = useState({ products: 0, categories: 0 });
+  const [stats, setStats] = useState({ products: 0, categories: 0, pendingOrders: 0, totalOrders: 0 });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [prods, cats] = await Promise.all([
+        const [prods, cats, ords] = await Promise.all([
           dbService.getProducts(),
-          dbService.getCategories()
+          dbService.getCategories(),
+          dbService.getOrders()
         ]);
-        setStats({ products: prods.length, categories: cats.length });
+
+        const pending = ords.filter(o => o.status === 'pending').length;
+        setStats({
+          products: prods.length,
+          categories: cats.length,
+          pendingOrders: pending,
+          totalOrders: ords.length
+        });
         setError(null);
       } catch (err: any) {
         const msg = err?.message || String(err);
@@ -23,6 +31,10 @@ const AdminDashboard: React.FC = () => {
       }
     };
     fetchStats();
+
+    // Poll for updates every 30s
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -43,10 +55,10 @@ const AdminDashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="flex flex-col gap-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <StatCard icon="inventory_2" label="Total Products" value={String(stats.products)} change="+2.4%" />
-            <StatCard icon="category" label="Active Categories" value={String(stats.categories)} change="0%" />
-            <StatCard icon="visibility" label="Total Views" value="12.5K" change="+12%" />
-            <StatCard icon="shopping_bag" label="Pending Orders" value="5" change="New" />
+            <StatCard icon="inventory_2" label="Total Products" value={String(stats.products)} change="Live" />
+            <StatCard icon="category" label="Active Categories" value={String(stats.categories)} change="Live" />
+            <StatCard icon="shopping_cart" label="Total Orders" value={String(stats.totalOrders)} change="Lifetime" />
+            <StatCard icon="pending_actions" label="Pending Orders" value={String(stats.pendingOrders)} change={stats.pendingOrders > 0 ? 'Action Needed' : 'Good'} />
           </div>
 
           <div className="flex flex-col gap-4">
@@ -98,7 +110,10 @@ const StatCard: React.FC<{ icon: string; label: string; value: string; change: s
       <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
         <span className="material-symbols-outlined">{icon}</span>
       </div>
-      <span className={`flex items-center px-2 py-1 rounded-lg text-xs font-bold ${change.startsWith('+') ? 'text-emerald-600 bg-emerald-50' : 'text-text-muted-light bg-background-light'}`}>
+      <span className={`flex items-center px-2 py-1 rounded-lg text-xs font-bold ${change === 'Action Needed' ? 'text-amber-600 bg-amber-50' :
+          change.startsWith('+') ? 'text-emerald-600 bg-emerald-50' :
+            'text-text-muted-light bg-background-light'
+        }`}>
         {change} {change.startsWith('+') && <span className="material-symbols-outlined text-[14px]">trending_up</span>}
       </span>
     </div>

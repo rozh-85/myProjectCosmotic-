@@ -1,6 +1,8 @@
 
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -9,12 +11,14 @@ interface LayoutProps {
 const AdminLayout: React.FC<LayoutProps> = ({ children }) => {
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSetupHelp, setShowSetupHelp] = useState(false);
+  const { user, signOut } = useAuth();
   const location = useLocation();
 
   const navItems = [
     { label: 'Dashboard', icon: 'dashboard', path: '/admin' },
     { label: 'Products', icon: 'inventory_2', path: '/admin/products' },
     { label: 'Categories', icon: 'category', path: '/admin/categories' },
+    { label: 'Orders', icon: 'shopping_cart', path: '/admin/orders' },
     { label: 'Banners', icon: 'image', path: '/admin/banners' },
     { label: 'Settings', icon: 'settings', path: '/admin/settings' },
   ];
@@ -59,6 +63,9 @@ create table if not exists banners (
 create table if not exists orders (
   id uuid default gen_random_uuid() primary key,
   customer_name text not null,
+  phone_number text,
+  address text,
+  city text,
   total_price numeric not null,
   status text default 'pending',
   items jsonb not null default '[]',
@@ -99,6 +106,19 @@ on conflict (id) do nothing;
 
 -- Allow public access to images bucket
 create policy "Public Access" on storage.objects for all using ( bucket_id = 'images' );
+
+-- 5. Update Orders Table (Run if you didn't have phone/address before)
+alter table orders add column if not exists phone_number text;
+alter table orders add column if not exists address text;
+alter table orders add column if not exists city text;
+
+-- 6. Create Settings Table (Run for dynamic logo)
+create table if not exists settings (
+  key text primary key,
+  value text not null
+);
+alter table settings disable row level security;
+insert into settings (key, value) values ('logo_url', '') on conflict do nothing;
   `.trim();
 
   return (
@@ -186,11 +206,11 @@ create policy "Public Access" on storage.objects for all using ( bucket_id = 'im
             <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">
               AD
             </div>
-            <div className="flex flex-col">
-              <p className="text-sm font-bold">Admin User</p>
-              <p className="text-xs text-text-muted-light">admin@luxe.com</p>
+            <div className="flex flex-col min-w-0">
+              <p className="text-sm font-bold">Admin</p>
+              <p className="text-xs text-text-muted-light truncate">{user?.email}</p>
             </div>
-            <button className="ml-auto text-text-muted-light hover:text-primary transition-colors">
+            <button onClick={signOut} className="ml-auto text-text-muted-light hover:text-red-500 transition-colors">
               <span className="material-symbols-outlined">logout</span>
             </button>
           </div>

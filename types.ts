@@ -41,6 +41,9 @@ export interface CartItem {
 export interface Order {
   id?: string;
   customer_name: string;
+  phone_number: string;
+  address: string;
+  city: string;
   total_price: number;
   status: 'pending' | 'completed' | 'cancelled';
   items: any[];
