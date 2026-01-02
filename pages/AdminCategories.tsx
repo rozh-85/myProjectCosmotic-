@@ -3,13 +3,17 @@ import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/dbService';
 import { storageService } from '../services/storageService';
 import { Category } from '../types';
+import { useToast } from '../context/ToastContext';
+import ConfirmModal from '../components/ConfirmModal';
 
 const AdminCategories: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const { showToast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null; name: string }>({ isOpen: false, id: null, name: '' });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -46,19 +50,19 @@ const AdminCategories: React.FC = () => {
     try {
       if (editingId) {
         await dbService.updateCategory(editingId, formData);
-        alert("Category updated successfully!");
+        showToast("Category updated successfully!");
       } else {
         await dbService.addCategory({
           ...formData,
           image_url: formData.image_url || 'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?auto=format&fit=crop&q=80&w=400'
         });
-        alert("Category created successfully!");
+        showToast("Category created successfully!");
       }
 
       cancelEdit();
       await fetchData();
     } catch (err) {
-      alert("Action failed. Please try again.");
+      showToast("Action failed. Please try again.", 'error');
     } finally {
       setSubmitting(false);
     }
@@ -87,14 +91,21 @@ const AdminCategories: React.FC = () => {
     });
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete category? Products in this category will become uncategorized.")) return;
+  const handleDeleteClick = (category: Category) => {
+    setDeleteModal({ isOpen: true, id: category.id, name: category.name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteModal.id) return;
     try {
-      await dbService.deleteCategory(id);
-      if (editingId === id) cancelEdit();
+      await dbService.deleteCategory(deleteModal.id);
+      if (editingId === deleteModal.id) cancelEdit();
+      showToast("Category deleted successfully");
       fetchData();
     } catch (err) {
-      alert("Failed to delete category.");
+      showToast("Failed to delete category.", 'error');
+    } finally {
+      setDeleteModal({ isOpen: false, id: null, name: '' });
     }
   };
 
@@ -107,7 +118,7 @@ const AdminCategories: React.FC = () => {
       const url = await storageService.uploadImage(file);
       setFormData({ ...formData, image_url: url });
     } catch (error) {
-      alert("Failed to upload image. Please click 'Database Setup Guide' in the sidebar and run the updated script to create the 'images' bucket.");
+      showToast("Failed to upload image. Please check Supabase setup.", 'error');
     } finally {
       setUploading(false);
     }
@@ -155,7 +166,7 @@ const AdminCategories: React.FC = () => {
                     <button onClick={() => handleEdit(cat)} className="h-8 w-8 rounded-full bg-slate-50 hover:bg-primary/5 text-slate-300 hover:text-primary flex items-center justify-center transition-all shadow-sm">
                       <span className="material-symbols-outlined text-[16px]">edit</span>
                     </button>
-                    <button onClick={() => handleDelete(cat.id)} className="h-8 w-8 rounded-full bg-slate-50 hover:bg-red-50 text-slate-300 hover:text-red-500 flex items-center justify-center transition-all shadow-sm">
+                    <button onClick={() => handleDeleteClick(cat)} className="h-8 w-8 rounded-full bg-slate-50 hover:bg-red-50 text-slate-300 hover:text-red-500 flex items-center justify-center transition-all shadow-sm">
                       <span className="material-symbols-outlined text-[16px]">delete</span>
                     </button>
                   </div>
@@ -256,6 +267,16 @@ const AdminCategories: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Delete Category"
+        message={`Are you sure you want to delete "${deleteModal.name}"? Products in this category will become uncategorized.`}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteModal({ ...deleteModal, isOpen: false })}
+        isDestructive
+        confirmText="Delete Category"
+      />
     </div>
   );
 };

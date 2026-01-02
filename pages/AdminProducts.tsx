@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/dbService';
 import { storageService } from '../services/storageService';
 import { Product, Category } from '../types';
+import { useToast } from '../context/ToastContext';
+import ConfirmModal from '../components/ConfirmModal';
 
 const AdminProducts: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -10,7 +12,9 @@ const AdminProducts: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const { showToast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null; name: string }>({ isOpen: false, id: null, name: '' });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -44,20 +48,20 @@ const AdminProducts: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.category_id) {
-      alert("Please select a category");
+      showToast("Please select a category", 'error');
       return;
     }
     setSubmitting(true);
     try {
       if (editingId) {
         await dbService.updateProduct(editingId, formData);
-        alert("Product updated successfully!");
+        showToast("Product updated successfully!");
       } else {
         await dbService.addProduct({
           ...formData,
           image_url: formData.image_url || 'https://images.unsplash.com/photo-1596462502278-27bfdc4033c8?auto=format&fit=crop&q=80&w=400'
         });
-        alert("Product published successfully!");
+        showToast("Product published successfully!");
       }
 
       setFormData({
@@ -72,7 +76,7 @@ const AdminProducts: React.FC = () => {
       setEditingId(null);
       await fetchData();
     } catch (err) {
-      alert("Action failed. Please try again.");
+      showToast("Action failed. Please try again.", 'error');
     } finally {
       setSubmitting(false);
     }
@@ -105,14 +109,21 @@ const AdminProducts: React.FC = () => {
     });
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this product?")) return;
+  const handleDeleteClick = (product: Product) => {
+    setDeleteModal({ isOpen: true, id: product.id, name: product.name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteModal.id) return;
     try {
-      await dbService.deleteProduct(id);
-      if (editingId === id) cancelEdit();
+      await dbService.deleteProduct(deleteModal.id);
+      if (editingId === deleteModal.id) cancelEdit();
+      showToast("Product deleted successfully");
       fetchData();
     } catch (err) {
-      alert("Failed to delete product.");
+      showToast("Failed to delete product.", 'error');
+    } finally {
+      setDeleteModal({ isOpen: false, id: null, name: '' });
     }
   };
 
@@ -125,7 +136,7 @@ const AdminProducts: React.FC = () => {
       const url = await storageService.uploadImage(file);
       setFormData({ ...formData, image_url: url });
     } catch (error) {
-      alert("Failed to upload image. Please click 'Database Setup Guide' in the sidebar and run the updated script to create the 'images' bucket.");
+      showToast("Failed to upload image. Please check Supabase setup.", 'error');
     } finally {
       setUploading(false);
     }
@@ -295,7 +306,7 @@ const AdminProducts: React.FC = () => {
                     <button onClick={() => handleEdit(p)} className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all">
                       <span className="material-symbols-outlined text-[18px]">edit</span>
                     </button>
-                    <button onClick={() => handleDelete(p.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
+                    <button onClick={() => handleDeleteClick(p)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
                       <span className="material-symbols-outlined text-[18px]">delete</span>
                     </button>
                   </div>
@@ -313,6 +324,16 @@ const AdminProducts: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Delete Product"
+        message={`Are you sure you want to delete "${deleteModal.name}"? This action cannot be undone.`}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteModal({ ...deleteModal, isOpen: false })}
+        isDestructive
+        confirmText="Delete Product"
+      />
     </div>
   );
 };

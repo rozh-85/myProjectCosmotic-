@@ -3,13 +3,17 @@ import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/dbService';
 import { storageService } from '../services/storageService';
 import { Banner } from '../types';
+import { useToast } from '../context/ToastContext';
+import ConfirmModal from '../components/ConfirmModal';
 
 const AdminBanners: React.FC = () => {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const { showToast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null; name: string }>({ isOpen: false, id: null, name: '' });
 
   const [formData, setFormData] = useState({
     title: '',
@@ -40,15 +44,15 @@ const AdminBanners: React.FC = () => {
     try {
       if (editingId) {
         await dbService.updateBanner(editingId, formData);
-        alert("Banner updated successfully!");
+        showToast("Banner updated successfully!");
       } else {
         await dbService.addBanner(formData);
-        alert("Banner published successfully!");
+        showToast("Banner published successfully!");
       }
       cancelEdit();
       fetchData();
     } catch (err) {
-      alert("Action failed. Please try again.");
+      showToast("Action failed. Please try again.", 'error');
     } finally {
       setSubmitting(false);
     }
@@ -82,18 +86,25 @@ const AdminBanners: React.FC = () => {
       await dbService.updateBanner(banner.id, { is_active: !banner.is_active });
       fetchData();
     } catch (err) {
-      alert("Failed to update status");
+      showToast("Failed to update status", 'error');
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this banner?")) return;
+  const handleDeleteClick = (banner: Banner) => {
+    setDeleteModal({ isOpen: true, id: banner.id, name: banner.title });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteModal.id) return;
     try {
-      await dbService.deleteBanner(id);
-      if (editingId === id) cancelEdit();
+      await dbService.deleteBanner(deleteModal.id);
+      if (editingId === deleteModal.id) cancelEdit();
+      showToast("Banner deleted successfully");
       fetchData();
     } catch (err) {
-      alert("Failed to delete banner");
+      showToast("Failed to delete banner", 'error');
+    } finally {
+      setDeleteModal({ isOpen: false, id: null, name: '' });
     }
   };
 
@@ -106,7 +117,7 @@ const AdminBanners: React.FC = () => {
       const url = await storageService.uploadImage(file);
       setFormData({ ...formData, image_url: url });
     } catch (error) {
-      alert("Failed to upload image. Please click 'Database Setup Guide' in the sidebar and run the updated script to create the 'images' bucket.");
+      showToast("Failed to upload image. Please check Supabase setup.", 'error');
     } finally {
       setUploading(false);
     }
@@ -163,7 +174,7 @@ const AdminBanners: React.FC = () => {
                       </button>
                     </div>
                     <button
-                      onClick={() => handleDelete(banner.id)}
+                      onClick={() => handleDeleteClick(banner)}
                       className="h-10 w-10 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-xl transition-colors"
                     >
                       <span className="material-symbols-outlined text-[20px]">delete</span>
@@ -252,6 +263,16 @@ const AdminBanners: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Delete Banner"
+        message={`Are you sure you want to delete "${deleteModal.name}"?`}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteModal({ ...deleteModal, isOpen: false })}
+        isDestructive
+        confirmText="Delete Banner"
+      />
     </div>
   );
 };
