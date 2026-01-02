@@ -17,10 +17,24 @@ const Storefront: React.FC = () => {
   const [activeView, setActiveView] = useState<'home' | 'category' | 'best-sellers' | 'checkout' | 'success'>('home');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   // Banner Carousel State
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const bannerRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to Top effect
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 400);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Auto-slide effect
   useEffect(() => {
@@ -241,28 +255,25 @@ const Storefront: React.FC = () => {
           <div className="w-full">
             {/* Hero Slider */}
             <section className="px-4 py-4 md:px-8 max-w-[1400px] mx-auto">
-              <div className="relative w-full overflow-hidden rounded-2xl md:rounded-3xl h-[50vh] min-h-[300px] group shadow-sm">
+              <div className="relative w-full overflow-hidden rounded-2xl md:rounded-3xl h-[35vh] md:h-[45vh] min-h-[250px] group shadow-sm">
                 <div
                   ref={bannerRef}
                   className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar w-full h-full scroll-smooth"
                   onScroll={(e) => {
-                    // Optional: update index on manual scroll if needed, 
-                    // but for simple auto-slide we can let the timer drive or just update state 
-                    // if we want perfect sync. For now, we trust the timer or dots.
-                    // A simple debounce calc could allow manual swipe sync.
                     const scrollLeft = e.currentTarget.scrollLeft;
                     const width = e.currentTarget.offsetWidth;
                     const index = Math.round(scrollLeft / width);
                     if (index !== currentBannerIndex) {
-                      // Only update if we are not currently animating from the timer to avoid loops?
-                      // Actually, updating state is fine, it will just reset the timer if we include it in deps.
-                      // To avoid jitter, we might skip this for now or do it carefully.
+                      // Handled by state
                     }
                   }}
                 >
                   {banners.length > 0 ? banners.map((banner, idx) => (
                     <div key={banner.id} className="snap-center shrink-0 w-full h-full relative">
-                      <img src={banner.image_url} className="absolute inset-0 w-full h-full object-cover" alt={banner.title} />
+                      <picture className="absolute inset-0 w-full h-full">
+                        {banner.mobile_image_url && <source media="(max-width: 768px)" srcSet={banner.mobile_image_url} />}
+                        <img src={banner.image_url} className="w-full h-full object-cover" alt={banner.title} />
+                      </picture>
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
                       <div className="absolute bottom-0 left-0 p-6 md:p-12 w-full text-white">
                         <div className="max-w-xl flex flex-col gap-3">
@@ -523,22 +534,15 @@ const Storefront: React.FC = () => {
         </footer>
       </main>
 
-      {/* Mobile Sticky CTA */}
-      <div className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[50] flex items-center bg-slate-900/90 backdrop-blur-xl border border-white/10 px-6 py-3 rounded-full shadow-2xl gap-8">
-        <button onClick={() => changeView('home')} className={activeView === 'home' ? 'text-primary' : 'text-white'}>
-          <span className="material-symbols-outlined filled">home</span>
+      {/* Floating Scroll to Top Button */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-10 right-8 z-[100] cursor-pointer size-11 bg-white items-center justify-center border border-slate-100 text-primary rounded-2xl flex shadow-[0_10px_40px_rgba(0,0,0,0.1)] hover:shadow-[0_15px_45px_rgba(0,0,0,0.15)] hover:-translate-y-1 transition-all duration-500 animate-fade-in group"
+        >
+          <span className="material-symbols-outlined text-[20px] font-bold transition-transform group-hover:-translate-y-0.5">expand_less</span>
         </button>
-        <button onClick={() => setIsMenuOpen(true)} className="text-white">
-          <span className="material-symbols-outlined">grid_view</span>
-        </button>
-        <button onClick={() => setIsCartOpen(true)} className="text-white relative">
-          <span className="material-symbols-outlined">shopping_bag</span>
-          {cartCount > 0 && <span className="absolute -top-1 -right-1 size-3 bg-primary rounded-full ring-2 ring-slate-900"></span>}
-        </button>
-        <Link to="/admin" className="text-white opacity-40">
-          <span className="material-symbols-outlined">person</span>
-        </Link>
-      </div>
+      )}
 
       <style>{`
         .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
@@ -558,18 +562,16 @@ const ProductCard: React.FC<{ product: Product; onAdd: () => void }> = ({ produc
           <span className="px-3 py-1 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest rounded-full">Out of Stock</span>
         </div>
       )}
-      <button className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-full text-slate-300 hover:text-primary transition-colors shadow-sm">
-        <span className="material-symbols-outlined text-[20px]">favorite</span>
-      </button>
 
-      {/* Quick Add Overlay */}
-      <div className="hidden md:flex absolute inset-x-0 bottom-0 p-3 translate-y-full group-hover:translate-y-0 transition-transform duration-500 z-10">
+      {/* Premium Desktop Hover Overlay */}
+      <div className="hidden md:flex absolute inset-0 bg-black/5 backdrop-blur-0 group-hover:backdrop-blur-[2px] group-hover:bg-black/20 items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500 z-10">
         <button
           onClick={onAdd}
           disabled={!product.in_stock}
-          className="w-full py-2.5 bg-white/95 backdrop-blur-xl text-slate-900 font-black text-[10px] uppercase rounded-xl shadow-xl hover:bg-primary hover:text-white transition-all disabled:opacity-50 tracking-widest"
+          className="px-6 py-3 bg-primary text-white font-black text-[11px] uppercase rounded-full shadow-[0_10px_30px_rgba(236,72,153,0.3)] hover:scale-110 active:scale-95 transition-all transform translate-y-4 group-hover:translate-y-0 duration-500 tracking-widest flex items-center gap-2"
         >
-          {product.in_stock ? 'Add to Bag' : 'Join Waitlist'}
+          <span className="material-symbols-outlined text-sm">shopping_bag</span>
+          {product.in_stock ? 'Add to Bag' : 'Out of Stock'}
         </button>
       </div>
     </div>
@@ -583,7 +585,7 @@ const ProductCard: React.FC<{ product: Product; onAdd: () => void }> = ({ produc
         <button
           onClick={onAdd}
           disabled={!product.in_stock}
-          className="md:hidden size-9 bg-slate-900 text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all disabled:opacity-30"
+          className="md:hidden size-9 bg-primary text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all disabled:opacity-30"
         >
           <span className="material-symbols-outlined text-[18px]">add</span>
         </button>
@@ -682,7 +684,7 @@ const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void; cart: CartIte
             <div className="flex-1 flex flex-col justify-between py-0.5">
               <div className="flex justify-between items-start gap-2">
                 <h4 className="font-bold text-slate-900 text-sm leading-tight">{item.product.name}</h4>
-                <button onClick={() => onRemove(item.product.id)} className="text-slate-300 hover:text-red-500 transition-colors"><span className="material-symbols-outlined text-[18px]">delete</span></button>
+                <button onClick={() => onRemove(item.product.id)} className="text-red-500 hover:text-red-600 transition-colors"><span className="material-symbols-outlined text-[18px]">delete</span></button>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-xl p-1">
@@ -736,10 +738,12 @@ const MenuDrawer: React.FC<{ isOpen: boolean; onClose: () => void; categories: C
             <span className="material-symbols-outlined text-[16px] opacity-20">arrow_forward_ios</span>
           </button>
         ))}
+        {/* Management Section Commented Out
         <div className="h-px bg-slate-50 my-4"></div>
         <Link to="/admin" className="flex items-center gap-4 py-3 text-sm font-bold text-slate-400 hover:text-slate-900 transition-all">
           <span className="material-symbols-outlined text-slate-300">settings</span> Management
         </Link>
+        */}
       </div>
     </div>
   </div>

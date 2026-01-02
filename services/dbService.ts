@@ -222,6 +222,7 @@ export const dbService = {
         title: String(b.title || ''),
         subtitle: String(b.subtitle || ''),
         image_url: String(b.image_url || ''),
+        mobile_image_url: String(b.mobile_image_url || ''),
         button_text: String(b.button_text || ''),
         is_active: Boolean(b.is_active),
         created_at: String(b.created_at || '')

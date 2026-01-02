@@ -28,6 +28,7 @@ export interface Banner {
   title: string;
   subtitle?: string;
   image_url: string;
+  mobile_image_url?: string;
   button_text?: string;
   is_active: boolean;
   created_at?: string;

@@ -19,6 +19,7 @@ const AdminBanners: React.FC = () => {
     title: '',
     subtitle: '',
     image_url: 'https://images.unsplash.com/photo-1596462502278-27bfdc4033c8?auto=format&fit=crop&q=80&w=1200',
+    mobile_image_url: '',
     button_text: 'Shop Now',
     is_active: true,
   });
@@ -64,6 +65,7 @@ const AdminBanners: React.FC = () => {
       title: banner.title,
       subtitle: banner.subtitle || '',
       image_url: banner.image_url,
+      mobile_image_url: banner.mobile_image_url || '',
       button_text: banner.button_text || 'Shop Now',
       is_active: banner.is_active,
     });
@@ -76,6 +78,7 @@ const AdminBanners: React.FC = () => {
       title: '',
       subtitle: '',
       image_url: 'https://images.unsplash.com/photo-1596462502278-27bfdc4033c8?auto=format&fit=crop&q=80&w=1200',
+      mobile_image_url: '',
       button_text: 'Shop Now',
       is_active: true,
     });
@@ -108,14 +111,14 @@ const AdminBanners: React.FC = () => {
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'image_url' | 'mobile_image_url') => {
     if (!e.target.files || e.target.files.length === 0) return;
 
     setUploading(true);
     try {
       const file = e.target.files[0];
       const url = await storageService.uploadImage(file);
-      setFormData({ ...formData, image_url: url });
+      setFormData({ ...formData, [field]: url });
     } catch (error) {
       showToast("Failed to upload image. Please check Supabase setup.", 'error');
     } finally {
@@ -221,12 +224,15 @@ const AdminBanners: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold uppercase text-text-muted-light mb-1">Image URL</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-bold uppercase text-text-muted-light">Desktop Image</label>
+                  <span className="text-[10px] text-amber-600 font-bold uppercase tracking-tight">Rec: 1920x600</span>
+                </div>
                 <div className="flex gap-2">
                   <input
                     required
                     className="flex-1 rounded-xl bg-background-light border-transparent focus:border-primary px-4 py-3 text-sm font-medium"
-                    placeholder="Unsplash or direct URL"
+                    placeholder="Desktop banner URL"
                     value={formData.image_url}
                     onChange={e => setFormData({ ...formData, image_url: e.target.value })}
                   />
@@ -235,12 +241,38 @@ const AdminBanners: React.FC = () => {
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={handleImageUpload}
+                      onChange={e => handleImageUpload(e, 'image_url')}
                       disabled={uploading}
                     />
                     <span className="material-symbols-outlined">{uploading ? 'hourglass_top' : 'cloud_upload'}</span>
                   </label>
                 </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-bold uppercase text-text-muted-light">Mobile Image (Optional)</label>
+                  <span className="text-[10px] text-amber-600 font-bold uppercase tracking-tight">Rec: 800x800</span>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    className="flex-1 rounded-xl bg-background-light border-transparent focus:border-primary px-4 py-3 text-sm font-medium"
+                    placeholder="Mobile banner URL"
+                    value={formData.mobile_image_url}
+                    onChange={e => setFormData({ ...formData, mobile_image_url: e.target.value })}
+                  />
+                  <label className={`flex items-center justify-center px-4 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary cursor-pointer transition-all ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={e => handleImageUpload(e, 'mobile_image_url')}
+                      disabled={uploading}
+                    />
+                    <span className="material-symbols-outlined">{uploading ? 'hourglass_top' : 'cloud_upload'}</span>
+                  </label>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1 italic">If empty, desktop image will be scaled for mobile.</p>
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase text-text-muted-light mb-1">Button Text</label>

@@ -55,6 +55,7 @@ create table if not exists banners (
   title text not null,
   subtitle text,
   image_url text not null,
+  mobile_image_url text,
   button_text text default 'Shop Now',
   is_active boolean default true,
   created_at timestamp with time zone default now()
@@ -112,7 +113,10 @@ alter table orders add column if not exists phone_number text;
 alter table orders add column if not exists address text;
 alter table orders add column if not exists city text;
 
--- 6. Create Settings Table (Run for dynamic logo)
+-- 6. Update Banners Table
+alter table banners add column if not exists mobile_image_url text;
+
+-- 7. Create Settings Table (Run for dynamic logo)
 create table if not exists settings (
   key text primary key,
   value text not null
