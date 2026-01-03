@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { dbService } from '../services/dbService';
 
 
 interface LayoutProps {
@@ -13,6 +14,21 @@ const AdminLayout: React.FC<LayoutProps> = ({ children }) => {
   const [showSetupHelp, setShowSetupHelp] = useState(false);
   const { user, signOut } = useAuth();
   const location = useLocation();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  React.useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const data = await dbService.getOrders();
+        setPendingCount(data.filter(o => o.status === 'pending').length);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const navItems = [
     { label: 'Dashboard', icon: 'dashboard', path: '/admin' },
@@ -188,11 +204,21 @@ insert into settings (key, value) values ('logo_url', '') on conflict do nothing
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors font-medium ${location.pathname === item.path ? 'bg-primary/10 text-primary' : 'text-text-muted-light hover:bg-background-light hover:text-text-main-light'}`}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors font-medium relative ${location.pathname === item.path ? 'bg-primary/10 text-primary' : 'text-text-muted-light hover:bg-background-light hover:text-text-main-light'}`}
                 onClick={() => setMobileMenuOpen(false)}
               >
-                <span className={`material-symbols-outlined ${location.pathname === item.path ? 'filled' : ''}`}>{item.icon}</span>
-                <span>{item.label}</span>
+                <div className="relative">
+                  <span className={`material-symbols-outlined ${location.pathname === item.path ? 'filled' : ''}`}>{item.icon}</span>
+                  {item.label === 'Orders' && pendingCount > 0 && (
+                    <span className="absolute -top-1 -right-1 size-2 bg-primary rounded-full animate-pulse border-2 border-white"></span>
+                  )}
+                </div>
+                <span className="flex-1">{item.label}</span>
+                {item.label === 'Orders' && pendingCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-primary text-white text-[10px] font-black animate-bounce shadow-sm shadow-primary/30">
+                    {pendingCount}
+                  </span>
+                )}
               </Link>
             ))}
           </nav>

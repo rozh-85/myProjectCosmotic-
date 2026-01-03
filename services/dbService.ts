@@ -121,6 +121,8 @@ export const dbService = {
           price: Number(prod.price ?? 0),
           description: String(prod.description ?? ''),
           image_url: String(prod.image_url ?? ''),
+          images: Array.isArray(prod.images) ? prod.images : [],
+          variants: Array.isArray(prod.variants) ? prod.variants : [],
           in_stock: Boolean(prod.in_stock),
           is_featured: Boolean(prod.is_featured),
           created_at: String(prod.created_at ?? '')
@@ -128,6 +130,45 @@ export const dbService = {
       });
     } catch (e) {
       return [];
+    }
+  },
+
+  async getProductById(id: string): Promise<Product | null> {
+    try {
+      const { data: prod, error } = await supabase
+        .from('products')
+        .select('*, categories(name)')
+        .eq('id', id)
+        .single();
+
+      if (error || !prod) return null;
+
+      let catName = '';
+      const categoryField = prod.categories;
+      if (categoryField) {
+        if (Array.isArray(categoryField)) {
+          catName = categoryField[0]?.name ?? '';
+        } else if (typeof categoryField === 'object') {
+          catName = (categoryField as any).name ?? '';
+        }
+      }
+
+      return {
+        id: String(prod.id ?? ''),
+        name: String(prod.name ?? ''),
+        category_id: String(prod.category_id ?? ''),
+        category_name: String(catName),
+        price: Number(prod.price ?? 0),
+        description: String(prod.description ?? ''),
+        image_url: String(prod.image_url ?? ''),
+        images: Array.isArray(prod.images) ? prod.images : [],
+        variants: Array.isArray(prod.variants) ? prod.variants : [],
+        in_stock: Boolean(prod.in_stock),
+        is_featured: Boolean(prod.is_featured),
+        created_at: String(prod.created_at ?? '')
+      };
+    } catch (e) {
+      return null;
     }
   },
 

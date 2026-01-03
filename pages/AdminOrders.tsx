@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/dbService';
-import { Order } from '../types';
+import { Order, ProductVariant } from '../types';
 import { useToast } from '../context/ToastContext';
 
 const AdminOrders: React.FC = () => {
@@ -50,19 +50,32 @@ const AdminOrders: React.FC = () => {
                     <p className="text-text-muted-light font-medium">Track and fulfill customer orders.</p>
                 </div>
 
-                <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-                    {(['all', 'pending', 'completed'] as const).map(f => (
-                        <button
-                            key={f}
-                            onClick={() => setFilter(f)}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold capitalize transition-all ${filter === f
+                <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm gap-1">
+                    {(['all', 'pending', 'completed'] as const).map(f => {
+                        const count = f === 'all' ? orders.length : orders.filter(o => o.status === f).length;
+                        return (
+                            <button
+                                key={f}
+                                onClick={() => setFilter(f)}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold capitalize transition-all flex items-center gap-2 ${filter === f
                                     ? 'bg-primary text-white shadow-md'
                                     : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
-                                }`}
-                        >
-                            {f}
-                        </button>
-                    ))}
+                                    }`}
+                            >
+                                <span>{f}</span>
+                                {count > 0 && (
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${filter === f
+                                            ? 'bg-white text-primary'
+                                            : f === 'pending'
+                                                ? 'bg-primary text-white animate-pulse'
+                                                : 'bg-slate-100 text-slate-600'
+                                        }`}>
+                                        {count}
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -82,8 +95,8 @@ const AdminOrders: React.FC = () => {
                             <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center mb-6 pb-6 border-b border-slate-50">
                                 <div className="flex items-center gap-4">
                                     <div className={`h-12 w-12 rounded-full flex items-center justify-center text-xl shadow-inner ${order.status === 'completed'
-                                            ? 'bg-emerald-100 text-emerald-600'
-                                            : 'bg-amber-100 text-amber-600'
+                                        ? 'bg-emerald-100 text-emerald-600'
+                                        : 'bg-amber-100 text-amber-600'
                                         }`}>
                                         <span className="material-symbols-outlined">
                                             {order.status === 'completed' ? 'check_circle' : 'pending'}
@@ -99,8 +112,8 @@ const AdminOrders: React.FC = () => {
 
                                 <div className="flex items-center gap-3">
                                     <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider ${order.status === 'completed'
-                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                                            : 'bg-amber-50 text-amber-700 border border-amber-100'
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                        : 'bg-amber-50 text-amber-700 border border-amber-100'
                                         }`}>
                                         {order.status}
                                     </span>
@@ -163,7 +176,16 @@ const AdminOrders: React.FC = () => {
                                                     </div>
                                                     <div className="flex flex-col">
                                                         <span className="text-sm font-bold text-slate-900">{item.product?.name || 'Unknown Product'}</span>
-                                                        <span className="text-xs text-slate-500">Qty: {item.quantity}</span>
+                                                        {item.selectedVariants && item.selectedVariants.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                                {item.selectedVariants.map((v: ProductVariant) => (
+                                                                    <span key={v.id} className="px-2 py-0.5 bg-primary/5 text-primary text-[10px] font-black uppercase rounded-full border border-primary/10">
+                                                                        {v.name}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        <span className="text-xs text-slate-500 mt-1 font-bold">Qty: {item.quantity}</span>
                                                     </div>
                                                 </div>
                                                 <span className="text-sm font-bold text-slate-900">${((item.product?.price || 0) * (item.quantity || 0)).toFixed(2)}</span>

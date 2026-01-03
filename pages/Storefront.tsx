@@ -1,17 +1,21 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { dbService } from '../services/dbService';
 import { Product, Category, Banner, CartItem } from '../types';
+import { useCart } from '../context/CartContext';
+import { useSettings } from '../context/SettingsContext';
 
 const Storefront: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // UI State
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const { cart, addToBag: addToCart, removeFromCart, updateQuantity, cartCount, cartTotal, clearCart } = useCart();
+  const { bannerDuration } = useSettings();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeView, setActiveView] = useState<'home' | 'category' | 'best-sellers' | 'checkout' | 'success'>('home');
@@ -51,10 +55,10 @@ const Storefront: React.FC = () => {
         left: width * nextIndex,
         behavior: 'smooth'
       });
-    }, 5000); // 5 seconds
+    }, bannerDuration); // Use dynamic duration from settings
 
     return () => clearInterval(interval);
-  }, [banners.length, currentBannerIndex]);
+  }, [banners.length, currentBannerIndex, bannerDuration]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -74,20 +78,17 @@ const Storefront: React.FC = () => {
       }
     };
     fetchData();
-
-    const savedCart = localStorage.getItem('luxe_cart');
-    if (savedCart) {
-      try {
-        setCart(JSON.parse(savedCart));
-      } catch (e) {
-        console.error("Cart error", e);
-      }
-    }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('luxe_cart', JSON.stringify(cart));
-  }, [cart]);
+    const params = new URLSearchParams(location.search);
+    const view = params.get('view');
+    if (view === 'checkout') {
+      setActiveView('checkout');
+      // Clean up URL without refreshing
+      window.history.replaceState({}, '', '/');
+    }
+  }, [location]);
 
   const changeView = (view: 'home' | 'category' | 'best-sellers' | 'checkout' | 'success', categoryId: string | null = null) => {
     setIsTransitioning(true);
@@ -130,35 +131,18 @@ const Storefront: React.FC = () => {
   };
 
   const addToBag = (product: Product) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.product.id === product.id);
-      if (existing) {
-        return prev.map(item =>
-          item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
-      }
-      return [...prev, { product, quantity: 1 }];
-    });
-    setIsCartOpen(true);
+    // If the product has options (variants), we MUST go to details to choose
+    if (product.variants && product.variants.length > 0) {
+      navigate(`/product/${product.id}`);
+    } else {
+      addToCart(product);
+    }
   };
 
-  const removeFromCart = (id: string) => {
-    setCart(prev => prev.filter(item => item.product.id !== id));
-  };
-
-  const updateQuantity = (id: string, delta: number) => {
-    setCart(prev => prev.map(item => {
-      if (item.product.id === id) {
-        const newQty = Math.max(1, item.quantity + delta);
-        return { ...item, quantity: newQty };
-      }
-      return item;
-    }));
-  };
+  // removeFromCart and updateQuantity are now provided by useCart
 
   const featuredProducts = products.filter(p => p.is_featured);
-  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const cartTotal = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+  // cartCount and cartTotal are now provided by useCart
 
   const handleCheckout = () => {
     setIsCartOpen(false);
@@ -176,7 +160,7 @@ const Storefront: React.FC = () => {
         status: 'pending',
         items: cart
       });
-      setCart([]);
+      clearCart();
       changeView('success');
     } catch (err) {
       alert("Failed to place order. Please try again.");
@@ -206,8 +190,8 @@ const Storefront: React.FC = () => {
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
         cart={cart}
-        onRemove={removeFromCart}
-        onUpdate={updateQuantity}
+        onRemove={(id, vIds) => removeFromCart(id, vIds)}
+        onUpdate={(id, d, vIds) => updateQuantity(id, d, vIds)}
         total={cartTotal}
         onCheckout={handleCheckout}
       />
@@ -356,7 +340,7 @@ const Storefront: React.FC = () => {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
                 {featuredProducts.slice(0, 4).map(p => (
-                  <ProductCard key={p.id} product={p} onAdd={() => addToBag(p)} />
+                  <ProductCard key={p.id} product={p} onAdd={() => addToBag(p)} onClick={() => navigate(`/product/${p.id}`)} />
                 ))}
               </div>
             </section>
@@ -381,7 +365,7 @@ const Storefront: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
                     {catProducts.slice(0, 4).map(p => (
-                      <ProductCard key={p.id} product={p} onAdd={() => addToBag(p)} />
+                      <ProductCard key={p.id} product={p} onAdd={() => addToBag(p)} onClick={() => navigate(`/product/${p.id}`)} />
                     ))}
                   </div>
                 </section>
@@ -391,10 +375,19 @@ const Storefront: React.FC = () => {
         ) : activeView === 'checkout' ? (
           /* Checkout View */
           <div className="w-full max-w-4xl px-4 md:px-8 py-12 animate-fade-in">
-            <div className="flex items-center gap-3 mb-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">
-              <button onClick={() => changeView('home')} className="hover:text-primary transition-colors">Home</button>
-              <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-              <span className="text-slate-900">Checkout</span>
+            <div className="mb-10">
+              <button
+                onClick={() => changeView('home')}
+                className="group flex items-center gap-3 text-slate-400 hover:text-primary transition-all w-fit"
+              >
+                <div className="size-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-primary/10 group-hover:scale-110 transition-all duration-300">
+                  <span className="material-symbols-outlined text-[20px] transition-transform group-hover:-translate-x-1">keyboard_backspace</span>
+                </div>
+                <div className="flex flex-col items-start translate-y-0.5">
+                  <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest leading-none mb-1">Return to</span>
+                  <span className="text-[11px] font-black text-slate-900 group-hover:text-primary uppercase tracking-wider leading-none">Home</span>
+                </div>
+              </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
@@ -406,16 +399,23 @@ const Storefront: React.FC = () => {
               <div className="bg-slate-50 p-8 rounded-3xl border border-slate-100 flex flex-col gap-6 sticky top-24">
                 <h3 className="text-xl font-black uppercase tracking-tight">Order Summary</h3>
                 <div className="flex flex-col gap-4 max-h-[400px] overflow-y-auto no-scrollbar">
-                  {cart.map(item => (
-                    <div key={item.product.id} className="flex gap-4">
+                  {cart.map((item, idx) => (
+                    <div key={`${item.product.id}-${item.selectedVariants?.map(v => v.id).join('-') || idx}`} className="flex gap-4">
                       <div className="h-16 w-16 bg-white rounded-xl overflow-hidden flex-shrink-0">
                         <img src={item.product.image_url} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1">
                         <p className="font-bold text-sm text-slate-900">{item.product.name}</p>
+                        {item.selectedVariants && item.selectedVariants.length > 0 && (
+                          <p className="text-[10px] font-black uppercase text-primary tracking-wider">
+                            {item.selectedVariants.map(v => v.name).join(' • ')}
+                          </p>
+                        )}
                         <p className="text-xs text-slate-500">Qty: {item.quantity}</p>
                       </div>
-                      <p className="font-bold text-sm text-slate-900">${(item.product.price * item.quantity).toFixed(2)}</p>
+                      <p className="font-bold text-sm text-slate-900">
+                        ${((item.product.price + (item.selectedVariants || []).reduce((s, v) => s + (v.price_override || 0), 0)) * item.quantity).toFixed(2)}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -451,17 +451,27 @@ const Storefront: React.FC = () => {
         ) : (
           /* Filtered Category / Best Sellers View */
           <div className="w-full max-w-[1280px] px-4 md:px-8 py-12 animate-fade-in">
-            <div className="flex items-center gap-3 mb-10 text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">
-              <button onClick={() => changeView('home')} className="hover:text-primary transition-colors">Home</button>
-              <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-              <span className="text-slate-900">{viewTitle}</span>
+            {/* Premium Back Navigation */}
+            <div className="mb-4">
+              <button
+                onClick={() => changeView('home')} // Changed from navigate(-1) to changeView('home') for Storefront.tsx context
+                className="group flex items-center gap-3 text-slate-400 hover:text-primary transition-all w-fit"
+              >
+                <div className="size-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-primary/10 group-hover:scale-110 transition-all duration-300">
+                  <span className="material-symbols-outlined text-[20px] transition-transform group-hover:-translate-x-1">keyboard_backspace</span>
+                </div>
+                <div className="flex flex-col items-start translate-y-0.5">
+                  <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest leading-none mb-1">Return to</span>
+                  <span className="text-[11px] font-black text-slate-900 group-hover:text-primary uppercase tracking-wider leading-none">Home</span> {/* Changed from {product.category_name} to Home */}
+                </div>
+              </button>
             </div>
 
             <h2 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tighter uppercase mb-12">{viewTitle}</h2>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
               {filteredProducts.length > 0 ? filteredProducts.map(p => (
-                <ProductCard key={p.id} product={p} onAdd={() => addToBag(p)} />
+                <ProductCard key={p.id} product={p} onAdd={() => addToBag(p)} onClick={() => navigate(`/product/${p.id}`)} />
               )) : (
                 <div className="col-span-full py-24 text-center text-slate-400 bg-slate-50 rounded-3xl">
                   <span className="material-symbols-outlined text-4xl mb-2">sentiment_neutral</span>
@@ -534,65 +544,137 @@ const Storefront: React.FC = () => {
         </footer>
       </main>
 
-      {/* Floating Scroll to Top Button */}
-      {showScrollTop && (
-        <button
-          onClick={scrollToTop}
-          className="fixed bottom-10 right-8 z-[100] cursor-pointer size-11 bg-white items-center justify-center border border-slate-100 text-primary rounded-2xl flex shadow-[0_10px_40px_rgba(0,0,0,0.1)] hover:shadow-[0_15px_45px_rgba(0,0,0,0.15)] hover:-translate-y-1 transition-all duration-500 animate-fade-in group"
-        >
-          <span className="material-symbols-outlined text-[20px] font-bold transition-transform group-hover:-translate-y-0.5">expand_less</span>
-        </button>
+      {/* Floating Bag Button */}
+      {!isCartOpen && (
+        <div className="fixed bottom-8 right-6 z-[100]">
+          <button
+            onClick={() => setIsCartOpen(true)}
+            className="size-14 bg-white border-2 border-primary text-primary items-center justify-center rounded-full flex shadow-[0_10px_40px_rgba(236,72,153,0.15)] hover:scale-110 active:scale-95 transition-all duration-300 relative group"
+          >
+            <span className="material-symbols-outlined text-[28px]">shopping_bag</span>
+            {cartCount > 0 && (
+              <span key={cartCount} className="absolute -top-1 -right-1 size-6 bg-primary text-white text-[11px] flex items-center justify-center font-black rounded-full ring-2 ring-white shadow-sm animate-bounce-short">
+                {cartCount}
+              </span>
+            )}
+            {/* Tooltip */}
+            <span className="absolute right-full mr-4 px-3 py-1 bg-slate-950 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              View Bag
+            </span>
+          </button>
+        </div>
       )}
 
       <style>{`
         .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        @keyframes productFade {
+          from { opacity: 0; transform: scale(1.08); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        .animate-product-fade {
+          animation: productFade 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes bounceShort {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-3px); }
+        }
+        .animate-bounce-short { animation: bounceShort 0.5s ease-in-out 1; }
       `}</style>
     </div>
   );
 };
 
 /* Internal Component: ProductCard */
-const ProductCard: React.FC<{ product: Product; onAdd: () => void }> = ({ product, onAdd }) => (
-  <div className="group flex flex-col h-full bg-white rounded-2xl overflow-hidden transition-all duration-300">
-    <div className="relative aspect-[3/4] rounded-2xl overflow-hidden mb-3 bg-slate-50 border border-slate-100/50">
-      <img src={product.image_url} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt={product.name} />
-      {!product.in_stock && (
-        <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] flex items-center justify-center p-4">
-          <span className="px-3 py-1 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest rounded-full">Out of Stock</span>
-        </div>
-      )}
+/* Internal Component: ProductCard */
+const ProductCard: React.FC<{ product: Product; onAdd: () => void; onClick: () => void }> = ({ product, onAdd, onClick }) => {
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const allImages = [product.image_url, ...(product.images || [])].filter(Boolean) as string[];
 
-      {/* Premium Desktop Hover Overlay */}
-      <div className="hidden md:flex absolute inset-0 bg-black/5 backdrop-blur-0 group-hover:backdrop-blur-[2px] group-hover:bg-black/20 items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500 z-10">
-        <button
-          onClick={onAdd}
-          disabled={!product.in_stock}
-          className="px-6 py-3 bg-primary text-white font-black text-[11px] uppercase rounded-full shadow-[0_10px_30px_rgba(236,72,153,0.3)] hover:scale-110 active:scale-95 transition-all transform translate-y-4 group-hover:translate-y-0 duration-500 tracking-widest flex items-center gap-2"
-        >
-          <span className="material-symbols-outlined text-sm">shopping_bag</span>
-          {product.in_stock ? 'Add to Bag' : 'Out of Stock'}
-        </button>
+  useEffect(() => {
+    if (allImages.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentIdx(prev => (prev + 1) % allImages.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [allImages.length]);
+
+  return (
+    <div onClick={onClick} className="group flex flex-col h-full bg-white rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer">
+      <div className="relative aspect-square rounded-2xl overflow-hidden mb-3 bg-slate-50 border border-slate-100/50">
+        <img
+          src={allImages[(currentIdx + allImages.length - 1) % allImages.length]}
+          className="absolute inset-0 w-full h-full object-cover"
+          alt=""
+        />
+        <img
+          src={allImages[currentIdx]}
+          className="absolute inset-0 w-full h-full object-cover animate-product-fade"
+          alt={product.name}
+          key={allImages[currentIdx]}
+        />
+        {!product.in_stock && (
+          <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] flex items-center justify-center p-4">
+            <span className="px-3 py-1 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest rounded-full">Out of Stock</span>
+          </div>
+        )}
+
+        {/* Variant Type Badges */}
+        {product.in_stock && product.variants && product.variants.length > 0 && (
+          <div className="absolute top-3 left-3 z-30 flex flex-col gap-1.5 pointer-events-none">
+            {Array.from(new Set(product.variants.map(v => v.type))).map(type => (
+              <div key={type} className="px-2.5 py-1.5 bg-white shadow-xl shadow-slate-200/50 rounded-xl flex items-center gap-2 border border-slate-50 transform hover:scale-105 transition-transform duration-300">
+                <div className={`size-1.5 rounded-full ${type === 'color' ? 'bg-primary shadow-[0_0_8px_rgba(236,72,153,0.4)]' : 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]'}`}></div>
+                <span className="text-[8px] font-black text-slate-900 uppercase tracking-[0.05em]">
+                  {type === 'color' ? 'Multiple Color' : type === 'size' ? 'Multiple ML' : `Multiple ${type}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Premium Desktop Hover Overlay */}
+        <div className="hidden md:flex absolute inset-0 bg-black/5 backdrop-blur-0 group-hover:backdrop-blur-[2px] group-hover:bg-black/20 items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500 z-10">
+          <button
+            onClick={(e) => { e.stopPropagation(); onAdd(); }}
+            disabled={!product.in_stock}
+            className="px-6 py-3 bg-primary text-white font-black text-[11px] uppercase rounded-full shadow-[0_10px_30px_rgba(236,72,153,0.3)] hover:scale-110 active:scale-95 transition-all transform translate-y-4 group-hover:translate-y-0 duration-500 tracking-widest flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined text-sm">shopping_bag</span>
+            {product.in_stock ? 'Add to Bag' : 'Out of Stock'}
+          </button>
+        </div>
+
+        {/* Indicators for multiple images */}
+        {allImages.length > 1 && (
+          <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1 z-20">
+            {allImages.map((_, i) => (
+              <div key={i} className={`h-1 rounded-full transition-all ${i === currentIdx ? 'w-4 bg-primary' : 'w-1 bg-white/40'}`} />
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="flex flex-col flex-grow px-1">
+        <div className="flex flex-col mb-3">
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{product.category_name || 'Beauty'}</span>
+          <h4 className="font-bold text-slate-900 text-sm md:text-base leading-tight group-hover:text-primary transition-colors truncate">{product.name}</h4>
+        </div>
+        <div className="flex items-center justify-between mt-auto">
+          <span className="font-black text-base md:text-lg text-slate-900 tracking-tighter">${product.price.toFixed(2)}</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onAdd(); }}
+            disabled={!product.in_stock}
+            className="md:hidden size-9 bg-primary text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all disabled:opacity-30"
+          >
+            <span className="material-symbols-outlined text-[18px]">add</span>
+          </button>
+        </div>
       </div>
     </div>
-    <div className="flex flex-col flex-grow px-1">
-      <div className="flex flex-col mb-3">
-        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{product.category_name || 'Beauty'}</span>
-        <h4 className="font-bold text-slate-900 text-sm md:text-base leading-tight group-hover:text-primary transition-colors truncate">{product.name}</h4>
-      </div>
-      <div className="flex items-center justify-between mt-auto">
-        <span className="font-black text-base md:text-lg text-slate-900 tracking-tighter">${product.price.toFixed(2)}</span>
-        <button
-          onClick={onAdd}
-          disabled={!product.in_stock}
-          className="md:hidden size-9 bg-primary text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all disabled:opacity-30"
-        >
-          <span className="material-symbols-outlined text-[18px]">add</span>
-        </button>
-      </div>
-    </div>
-  </div>
-);
+  );
+};
 
 const CheckoutForm: React.FC<{ onSubmit: (data: any) => void; total: number }> = ({ onSubmit, total }) => {
   const [formData, setFormData] = useState({
@@ -658,7 +740,15 @@ const CheckoutForm: React.FC<{ onSubmit: (data: any) => void; total: number }> =
 };
 
 /* Internal Component: CartDrawer */
-const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void; cart: CartItem[]; onRemove: (id: string) => void; onUpdate: (id: string, d: number) => void; total: number; onCheckout: () => void }> = ({ isOpen, onClose, cart, onRemove, onUpdate, total, onCheckout }) => (
+const CartDrawer: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  cart: CartItem[];
+  onRemove: (id: string, vIds?: string) => void;
+  onUpdate: (id: string, d: number, vIds?: string) => void;
+  total: number;
+  onCheckout: () => void
+}> = ({ isOpen, onClose, cart, onRemove, onUpdate, total, onCheckout }) => (
   <div className={`fixed inset-0 z-[100] transition-all duration-500 ${isOpen ? 'visible' : 'invisible'}`}>
     <div className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-500 ${isOpen ? 'opacity-100' : 'opacity-0'}`} onClick={onClose}></div>
     <div className={`absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl flex flex-col transition-transform duration-500 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
@@ -676,27 +766,39 @@ const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void; cart: CartIte
             <span className="material-symbols-outlined text-6xl mb-4">shopping_bag</span>
             <p className="font-black text-sm uppercase tracking-widest">Bag is empty</p>
           </div>
-        ) : cart.map(item => (
-          <div key={item.product.id} className="flex gap-4">
-            <div className="size-20 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0">
-              <img src={item.product.image_url} className="w-full h-full object-cover" alt={item.product.name} />
-            </div>
-            <div className="flex-1 flex flex-col justify-between py-0.5">
-              <div className="flex justify-between items-start gap-2">
-                <h4 className="font-bold text-slate-900 text-sm leading-tight">{item.product.name}</h4>
-                <button onClick={() => onRemove(item.product.id)} className="text-red-500 hover:text-red-600 transition-colors"><span className="material-symbols-outlined text-[18px]">delete</span></button>
+        ) : cart.map((item, idx) => {
+          const variantIds = item.selectedVariants?.map(v => v.id).sort().join(',') || '';
+          return (
+            <div key={`${item.product.id}-${variantIds || idx}`} className="flex gap-4">
+              <div className="size-20 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0">
+                <img src={item.product.image_url} className="w-full h-full object-cover" alt={item.product.name} />
               </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-xl p-1">
-                  <button onClick={() => onUpdate(item.product.id, -1)} className="size-6 flex items-center justify-center text-slate-500 hover:bg-white rounded shadow-sm"><span className="material-symbols-outlined text-[14px]">remove</span></button>
-                  <span className="text-xs font-black w-4 text-center">{item.quantity}</span>
-                  <button onClick={() => onUpdate(item.product.id, 1)} className="size-6 flex items-center justify-center text-slate-500 hover:bg-white rounded shadow-sm"><span className="material-symbols-outlined text-[14px]">add</span></button>
+              <div className="flex-1 flex flex-col justify-between py-0.5">
+                <div className="flex justify-between items-start gap-2">
+                  <div className="flex flex-col">
+                    <h4 className="font-bold text-slate-900 text-sm leading-tight">{item.product.name}</h4>
+                    {item.selectedVariants && item.selectedVariants.length > 0 && (
+                      <span className="text-[10px] font-black text-primary uppercase tracking-widest mt-1">
+                        {item.selectedVariants.map(v => v.name).join(' • ')}
+                      </span>
+                    )}
+                  </div>
+                  <button onClick={() => onRemove(item.product.id, variantIds)} className="text-red-500 hover:text-red-600 transition-colors"><span className="material-symbols-outlined text-[18px]">delete</span></button>
                 </div>
-                <span className="font-black text-slate-900 text-sm">${(item.product.price * item.quantity).toFixed(2)}</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-xl p-1">
+                    <button onClick={() => onUpdate(item.product.id, -1, variantIds)} className="size-6 flex items-center justify-center text-slate-500 hover:bg-white rounded shadow-sm"><span className="material-symbols-outlined text-[14px]">remove</span></button>
+                    <span className="text-xs font-black w-4 text-center">{item.quantity}</span>
+                    <button onClick={() => onUpdate(item.product.id, 1, variantIds)} className="size-6 flex items-center justify-center text-slate-500 hover:bg-white rounded shadow-sm"><span className="material-symbols-outlined text-[14px]">add</span></button>
+                  </div>
+                  <span className="font-black text-slate-900 text-sm">
+                    ${((item.product.price + (item.selectedVariants || []).reduce((s, v) => s + (v.price_override || 0), 0)) * item.quantity).toFixed(2)}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {cart.length > 0 && (

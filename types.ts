@@ -18,9 +18,19 @@ export interface Product {
   price: number;
   description?: string;
   image_url?: string;
+  images?: string[]; // Multiple images support for colors/shades
+  variants?: ProductVariant[]; // Support for colors/ml
   in_stock: boolean;
   is_featured: boolean;
   created_at?: string;
+}
+
+export interface ProductVariant {
+  id: string;
+  name: string;
+  type: 'color' | 'size' | 'other';
+  price_override?: number;
+  image_url?: string;
 }
 
 export interface Banner {
@@ -37,6 +47,7 @@ export interface Banner {
 export interface CartItem {
   product: Product;
   quantity: number;
+  selectedVariants?: ProductVariant[];
 }
 
 export interface Order {

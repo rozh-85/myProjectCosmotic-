@@ -5,6 +5,7 @@ import { storageService } from '../services/storageService';
 import { Banner } from '../types';
 import { useToast } from '../context/ToastContext';
 import ConfirmModal from '../components/ConfirmModal';
+import { useSettings } from '../context/SettingsContext';
 
 const AdminBanners: React.FC = () => {
   const [banners, setBanners] = useState<Banner[]>([]);
@@ -12,8 +13,10 @@ const AdminBanners: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const { showToast } = useToast();
+  const { bannerDuration, refreshSettings } = useSettings();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null; name: string }>({ isOpen: false, id: null, name: '' });
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -126,11 +129,51 @@ const AdminBanners: React.FC = () => {
     }
   };
 
+  const handleUpdateDuration = async (seconds: number) => {
+    setSavingSettings(true);
+    try {
+      await dbService.updateSetting('banner_duration', (seconds * 1000).toString());
+      await refreshSettings();
+      showToast(`Slide duration set to ${seconds} seconds`);
+    } catch (err) {
+      showToast("Failed to save speed setting", "error");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto w-full flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-black tracking-tight">Banner Management</h2>
-        <p className="text-text-muted-light">Manage the hero section sliders on the storefront.</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-3xl font-black tracking-tight text-slate-900">Banner Management</h2>
+          <p className="text-text-muted-light font-medium">Manage the hero section sliders on the storefront.</p>
+        </div>
+
+        {banners.length > 1 && (
+          <div className="bg-white p-4 rounded-2xl border border-border-light shadow-sm flex flex-col gap-3 min-w-[240px]">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Auto-Slide Speed</span>
+              <span className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-black rounded-full">{bannerDuration / 1000}s</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min="2"
+                max="10"
+                step="1"
+                value={bannerDuration / 1000}
+                onChange={(e) => handleUpdateDuration(parseInt(e.target.value))}
+                disabled={savingSettings}
+                className="flex-1 h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-primary"
+              />
+              {savingSettings && (
+                <div className="size-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+              )}
+            </div>
+            <p className="text-[9px] text-slate-400 font-medium">Time between banner transitions</p>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
