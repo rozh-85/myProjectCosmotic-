@@ -72,12 +72,15 @@ const ProductDetail: React.FC = () => {
             {/* Header Navigation */}
             <nav className="sticky top-0 z-[60] w-full bg-white/90 backdrop-blur-lg border-b border-slate-100 px-4 py-4 md:px-8">
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
-                    <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-900 group">
-                        <span className="material-symbols-outlined transition-transform group-hover:-translate-x-1">west</span>
-                        <span className="text-xs font-black uppercase tracking-widest">Back</span>
-                    </button>
-                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-                        <h1 className="text-xl font-black tracking-tighter uppercase">LUXE</h1>
+                    <div className="flex items-center gap-6">
+                        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-900 group">
+                            <span className="material-symbols-outlined transition-transform group-hover:-translate-x-1">west</span>
+                            <span className="text-xs font-black uppercase tracking-widest">Back</span>
+                        </button>
+                        <div className="h-4 w-px bg-slate-200"></div>
+                        <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+                            <h1 className="text-xl font-black tracking-tighter uppercase">LUXE</h1>
+                        </div>
                     </div>
                     <button onClick={() => setIsCartOpen(true)} className="relative p-2 hover:bg-slate-50 rounded-full transition-colors group">
                         <span className="material-symbols-outlined text-[24px]">shopping_bag</span>
@@ -104,21 +107,7 @@ const ProductDetail: React.FC = () => {
 
                 {/* Gallery Section - Updated to Carousel */}
                 <div className="w-full md:w-[55%] flex flex-col gap-4">
-                    {/* Premium Back Navigation */}
-                    <div className="mb-2">
-                        <button
-                            onClick={() => navigate(-1)}
-                            className="group flex items-center gap-3 text-slate-400 hover:text-primary transition-all w-fit"
-                        >
-                            <div className="size-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-primary/10 group-hover:scale-110 transition-all duration-300">
-                                <span className="material-symbols-outlined text-[20px] transition-transform group-hover:-translate-x-1">keyboard_backspace</span>
-                            </div>
-                            <div className="flex flex-col items-start translate-y-0.5">
-                                <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest leading-none mb-1">Return to</span>
-                                <span className="text-[11px] font-black text-slate-900 group-hover:text-primary uppercase tracking-wider leading-none">{product.category_name}</span>
-                            </div>
-                        </button>
-                    </div>
+
 
                     {/* Main Image Carousel */}
                     <div className="relative group">
