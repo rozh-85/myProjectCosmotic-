@@ -111,11 +111,11 @@ const ProductDetail: React.FC = () => {
 
                     {/* Main Image Carousel */}
                     <div className="relative group">
-                        <div className="aspect-square md:aspect-[4/4.5] rounded-[2.5rem] overflow-hidden bg-slate-50 shadow-sm border border-slate-100 relative">
+                        <div className="aspect-square md:aspect-[4/4.5] rounded-[32px] md:rounded-[2.5rem] overflow-hidden bg-slate-50 shadow-sm border border-slate-100 relative isolation-auto">
                             <div className="flex h-full overflow-x-auto snap-x snap-mandatory no-scrollbar scroll-smooth" id="product-carousel">
                                 {allImages.map((img, i) => (
-                                    <div key={i} className="min-w-full h-full snap-center">
-                                        <img src={img} className="w-full h-full object-cover" alt={`${product.name} view ${i + 1}`} />
+                                    <div key={i} className="min-w-full w-full h-full snap-center flex-shrink-0">
+                                        <img src={img} className="w-full h-full object-cover object-center" alt={`${product.name} view ${i + 1}`} />
                                     </div>
                                 ))}
                             </div>
@@ -133,7 +133,7 @@ const ProductDetail: React.FC = () => {
 
                     {/* Thumbnail Selector */}
                     {allImages.length > 1 && (
-                        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 pt-1">
+                        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 pt-2 -mx-2 px-2 snap-x">
                             {allImages.map((img, i) => (
                                 <button
                                     key={i}
@@ -142,7 +142,7 @@ const ProductDetail: React.FC = () => {
                                         if (el) el.scrollLeft = el.offsetWidth * i;
                                         setActiveImg(img);
                                     }}
-                                    className={`size-20 md:size-24 rounded-2xl overflow-hidden flex-shrink-0 border-2 transition-all ${activeImg === img ? 'border-primary scale-105 shadow-md' : 'border-slate-100 opacity-60 hover:opacity-100'}`}
+                                    className={`size-20 md:size-24 rounded-2xl overflow-hidden flex-shrink-0 border-2 transition-all snap-start ${activeImg === img ? 'border-primary ring-2 ring-primary/20 scale-105 shadow-lg' : 'border-slate-100 opacity-60 hover:opacity-100'}`}
                                 >
                                     <img src={img} className="w-full h-full object-cover" />
                                 </button>
